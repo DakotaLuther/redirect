@@ -2,26 +2,56 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Dispatch</title>
+  <title>Working…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html,body{height:100%;margin:0;background:#111;color:#ddd;font:14px/1.4 system-ui,Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center}
+    .msg{opacity:.7}
+  </style>
 </head>
 <body>
+  <div class="msg">Working… you can close this tab.</div>
 <script>
-  // Read params from Airtable button URL
-  const qs = new URLSearchParams(window.location.search);
+  // --- 1) Read params from Airtable
+  const qs = new URLSearchParams(location.search);
   const recordId = qs.get("recordId") || "";
+  const action   = qs.get("action")   || "default";
 
+  // --- 2) Your Make webhook
   const WEBHOOK_URL = "https://hook.us2.make.com/gkm5jqbityd55m278zfpzxo9q752xjm0";
 
-  const payload = new URLSearchParams();
-  if (recordId) payload.set("recordId", recordId);
+  // --- 3) Send silently (POST) using sendBeacon (most reliable during unload)
+  try {
+    const body = new URLSearchParams();
+    if (recordId) body.set("recordId", recordId);
+    if (action)   body.set("action", action);
+    const blob = new Blob([body.toString()], { type: "application/x-www-form-urlencoded;charset=UTF-8" });
+    navigator.sendBeacon(WEBHOOK_URL, blob);
+  } catch (e) {
+    // Fallback to fetch with keepalive (older browsers)
+    fetch(WEBHOOK_URL + "?recordId=" + encodeURIComponent(recordId) + "&action=" + encodeURIComponent(action), {
+      method: "GET",
+      mode: "no-cors",
+      keepalive: true
+    }).catch(()=>{});
+  }
 
-  const blob = new Blob([payload.toString()], {
-    type: "application/x-www-form-urlencoded;charset=UTF-8"
+  // --- 4) Try to close; if blocked, fall back to a blank page
+  function tryClose() {
+    // some browsers require this sequence
+    window.open('', '_self');
+    window.close();
+    // if still open after a tick, replace with blank
+    setTimeout(() => { location.replace('about:blank'); }, 400);
+  }
+
+  // attempt immediately
+  tryClose();
+
+  // also try again when the page gets hidden (tab switch/unload)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') tryClose();
   });
-  navigator.sendBeacon(WEBHOOK_URL, blob);
-
-  // Close the tab immediately
-  window.close();
 </script>
 </body>
 </html>
